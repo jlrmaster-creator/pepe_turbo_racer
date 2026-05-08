@@ -50,14 +50,22 @@
   .hud-value.speed { color:#f7c948; }
   .hud-value.score { color:#4fc3f7; }
 
+  #lifeBarWrap {
+    position:absolute; bottom:clamp(130px,22vh,190px); left:10%; right:10%;
+    display:flex; align-items:center; gap:10px;
+  }
+  #lifeBarLabel {
+    color:rgba(255,255,255,0.6); font-size:clamp(9px,1.6vw,12px);
+    text-transform:uppercase; letter-spacing:1px; white-space:nowrap; min-width:50px;
+  }
   #lifeBar {
-    position:absolute; bottom:clamp(140px,22vh,200px); left:10%; right:10%; height:6px;
-    background:rgba(255,255,255,0.15); border-radius:3px; overflow:hidden;
+    flex:1; height:8px; background:rgba(255,255,255,0.12); border-radius:4px; overflow:hidden;
+    border:1px solid rgba(255,255,255,0.08);
   }
   #lifeBarFill {
     height:100%; width:100%; border-radius:3px;
     background:linear-gradient(90deg,#ff1744,#ff6b35,#76ff03);
-    transition:width 0.2s;
+    transition:width 0.15s;
   }
 
   #touchControls {
@@ -131,7 +139,10 @@
       <div class="hud-value speed" id="speedDisplay">0</div>
     </div>
   </div>
-  <div id="lifeBar"><div id="lifeBarFill"></div></div>
+  <div id="lifeBarWrap">
+    <span id="lifeBarLabel">VIDA</span>
+    <div id="lifeBar"><div id="lifeBarFill"></div></div>
+  </div>
   <div class="speed-indicator" id="levelDisplay">NIVEL 1</div>
   <div id="touchControls">
     <div class="touch-btn touch-btn-left" id="leftBtn">◀</div>
@@ -265,6 +276,12 @@ const HORIZON_RATIO = 0.1;
 
 let segments = [];
 let segmentCurves = [];
+
+function getCurveAt(distance) {
+  const segIdx = Math.floor(distance / SEGMENT_LENGTH);
+  ensureSegmentsUpTo(segIdx + 1);
+  return segmentCurves[segIdx];
+}
 
 function generateSegmentCurve(index) {
   const sectionLen = 35;
@@ -433,12 +450,11 @@ function drawBackground(distance) {
 
 // ===================== GROUND / OFF-ROAD =====================
 function drawGround(roadScreenSegments) {
-  // Fill areas outside the road with ground texture
   const horizonY = H * HORIZON_RATIO;
   const grad = ctx.createLinearGradient(0, horizonY, 0, H);
-  grad.addColorStop(0, '#0a0a1a');
-  grad.addColorStop(0.3, '#0d1a0d');
-  grad.addColorStop(1, '#0f1f0f');
+  grad.addColorStop(0, '#2a3a1a');
+  grad.addColorStop(0.3, '#3a5a2a');
+  grad.addColorStop(1, '#4a6a3a');
   ctx.fillStyle = grad;
   ctx.fillRect(0, horizonY, W, H);
 }
@@ -541,8 +557,8 @@ function drawRoad(playerPos, playerX) {
     const rumbleW = s1.sw * 1.15;
     const rumbleW2 = s2.sw * 1.15;
 
-    // Draw off-road shoulder
-    ctx.fillStyle = '#1a2a1a';
+    // Draw off-road shoulder (lighter gravel/sand)
+    ctx.fillStyle = '#8a7a5a';
     ctx.beginPath();
     ctx.moveTo(s1.sx - rumbleW, y1);
     ctx.lineTo(s1.sx + rumbleW, y1);
@@ -1050,6 +1066,11 @@ function update() {
   const moveAmount = left ? -speed * 0.6 : (right ? speed * 0.6 : 0);
   playerX += moveAmount * 0.6;
 
+  // Road curve drift: if unsteered, the car drifts off-road as the road curves
+  const roadCurve = getCurveAt(playerPos);
+  const drift = roadCurve * speed * 0.04;
+  playerX -= drift;
+
   // Car lean animation
   const targetLean = left ? -0.06 : (right ? 0.06 : 0);
   leanAngle += (targetLean - leanAngle) * 0.08;
@@ -1058,14 +1079,10 @@ function update() {
   bouncePhase += speed * 0.08;
   const bounceY = Math.sin(bouncePhase) * 0.8;
 
-  // Calculate road center at player position
-  const roadCenterAtPlayer = getRoadXAt(playerPos);
-  const leftEdge = roadCenterAtPlayer - ROAD_WIDTH / 2;
-  const rightEdge = roadCenterAtPlayer + ROAD_WIDTH / 2;
-
-  // Check off-road
+  // Check off-road (playerX is offset from road center)
   const margin = 500;
-  isOffroad = (playerX < leftEdge + margin || playerX > rightEdge - margin);
+  const safeHalf = ROAD_WIDTH / 2 - margin;
+  isOffroad = (playerX < -safeHalf || playerX > safeHalf);
 
   if (isOffroad) {
     offroadTimer++;
