@@ -39,9 +39,12 @@
   #gameUI { position:absolute; top:0; left:0; width:100%; height:100%; z-index:5; pointer-events:none; }
   #gameUI > * { pointer-events:auto; }
 
-  /* Top-left: Life bar */
-  #lifeCorner {
+  /* Top-left: Life bar + Score */
+  #leftPanel {
     position:absolute; top:clamp(10px,2.5vw,18px); left:clamp(10px,2.5vw,18px);
+    display:flex; flex-direction:column; gap:6px;
+  }
+  #lifeCorner {
     display:flex; align-items:center; gap:8px; background:rgba(0,0,0,0.4);
     padding:6px 12px; border-radius:8px; backdrop-filter:blur(4px);
     border:1px solid rgba(255,255,255,0.1);
@@ -59,24 +62,17 @@
     background:linear-gradient(90deg,#ff1744,#ff6b35,#76ff03);
     transition:width 0.1s;
   }
-
-  /* Top-right: Score */
-  #rightPanel {
-    position:absolute; top:clamp(10px,2.5vw,18px); right:clamp(10px,2.5vw,18px);
-    display:flex; flex-direction:column; gap:6px; align-items:flex-end;
-  }
-
   #scoreFrame {
     background:rgba(0,0,0,0.4); backdrop-filter:blur(4px);
-    border:1px solid rgba(255,255,255,0.1); border-radius:10px;
-    padding:6px 12px; text-align:right;
+    border:1px solid rgba(255,255,255,0.1); border-radius:8px;
+    padding:4px 12px; text-align:left;
   }
   #scoreFrameLabel {
     font-size:clamp(7px,1.2vw,10px); color:rgba(255,255,255,0.4);
-    text-transform:uppercase; letter-spacing:2px;
+    text-transform:uppercase; letter-spacing:1px;
   }
   #scoreFrameValue {
-    font-size:clamp(16px,3.5vw,26px); font-weight:800; color:#4fc3f7;
+    font-size:clamp(14px,3vw,22px); font-weight:800; color:#4fc3f7;
     text-shadow:0 2px 8px rgba(0,0,0,0.6); line-height:1;
   }
 
@@ -110,12 +106,15 @@
   .touch-btn-left { margin-right:auto; }
   .touch-btn-right { margin-left:auto; }
   .touch-btn-pause {
-    position:absolute; top:clamp(8px,2vw,14px); left:50%; transform:translateX(-50%);
-    width:clamp(36px,6vw,48px); height:clamp(36px,6vw,48px); border-radius:50%;
-    border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.3);
+    width:clamp(44px,8vw,56px); height:clamp(44px,8vw,56px); border-radius:50%;
+    border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.35);
     display:flex; align-items:center; justify-content:center;
-    color:#fff; font-size:clamp(14px,2.5vw,20px); cursor:pointer;
-    backdrop-filter:blur(4px); z-index:15;
+    color:#fff; font-size:clamp(16px,3vw,24px); cursor:pointer;
+    backdrop-filter:blur(4px);
+    -webkit-tap-highlight-color:transparent; touch-action:none;
+  }
+  .touch-btn-pause:active {
+    background:rgba(255,255,255,0.15); transform:scale(0.9);
   }
 
   @supports (-webkit-touch-callout:none) {
@@ -143,11 +142,11 @@
 <canvas id="gameCanvas"></canvas>
 
 <div id="gameUI" style="display:none;">
-  <div id="lifeCorner">
-    <span id="lifeCornerLabel">VIDA</span>
-    <div id="lifeCornerBar"><div id="lifeCornerFill"></div></div>
-  </div>
-  <div id="rightPanel">
+  <div id="leftPanel">
+    <div id="lifeCorner">
+      <span id="lifeCornerLabel">VIDA</span>
+      <div id="lifeCornerBar"><div id="lifeCornerFill"></div></div>
+    </div>
     <div id="scoreFrame">
       <div id="scoreFrameLabel">Puntos</div>
       <div id="scoreFrameValue">0</div>
@@ -156,9 +155,9 @@
   <div id="levelDisplay">NIVEL 1</div>
   <div id="touchControls">
     <div class="touch-btn touch-btn-left" id="leftBtn">◀</div>
+    <div class="touch-btn-pause" id="pauseBtn">⏸</div>
     <div class="touch-btn touch-btn-right" id="rightBtn">▶</div>
   </div>
-  <div class="touch-btn-pause" id="pauseBtn">⏸</div>
 </div>
 
 <script>
