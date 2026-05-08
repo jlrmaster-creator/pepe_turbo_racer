@@ -756,29 +756,31 @@ function drawAvatarCollectible() {
     if (sy < horizonY || sy > H) continue;
     const sx = W / 2 + dx * scale;
     if (sx < -60 || sx > W + 60) continue;
-    const sz = Math.max(30, 75 * scale);
+    const sz = Math.max(6, 30 * scale);
+    const avatarH = sz * 2;
+    const topY = Math.max(horizonY, sy - avatarH);
     // Glow ring
     ctx.shadowColor = '#f7c948';
-    ctx.shadowBlur = 20 * scale;
+    ctx.shadowBlur = 15 * scale;
     ctx.strokeStyle = 'rgba(247,201,72,0.5)';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(sx, sy - sz, sz * 0.8, 0, Math.PI * 2);
+    ctx.arc(sx, sy - sz * 0.8, sz * 0.7, 0, Math.PI * 2);
     ctx.stroke();
     ctx.shadowBlur = 0;
-    // Avatar image or fallback star on the road surface
+    // Avatar image or fallback on the road surface
     if (avatarImg.complete && avatarImg.naturalWidth > 0) {
-      ctx.drawImage(avatarImg, sx - sz, sy - sz * 2, sz * 2, sz * 2);
+      ctx.drawImage(avatarImg, sx - sz, topY, sz * 2, sy - topY);
     } else {
       ctx.fillStyle = '#f7c948';
       ctx.beginPath();
-      ctx.arc(sx, sy - sz, sz, 0, Math.PI * 2);
+      ctx.arc(sx, sy - sz, sz * 0.8, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#ff6b35';
-      ctx.font = `bold ${sz}px sans-serif`;
+      ctx.font = `bold ${sz * 0.8}px sans-serif`;
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('P', sx, sy - sz * 0.4);
+      ctx.textBaseline = 'bottom';
+      ctx.fillText('P', sx, sy - 2);
     }
   }
 }
@@ -1208,13 +1210,6 @@ function drawSpeedometer() {
   ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
   ctx.fillStyle = '#f7c948';
   ctx.fill();
-
-  // Speed value
-  ctx.fillStyle = '#fff';
-  ctx.font = `bold ${radius * 0.32}px sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(Math.floor(speed * 12), cx, cy + 2);
 
   // KM/H label
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
