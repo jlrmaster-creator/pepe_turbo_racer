@@ -259,24 +259,32 @@ function renderHighScores(containerId) {
 const SEGMENT_LENGTH = 200;
 const VISIBLE_SEGMENTS = 250;
 const ROAD_WIDTH = 3000;
-const FOCAL_LENGTH = 280;
-const CAMERA_HEIGHT = 1600;
-const HORIZON_RATIO = 0.38;
+const FOCAL_LENGTH = 400;
+const CAMERA_HEIGHT = 2000;
+const HORIZON_RATIO = 0.1;
 
 let segments = [];
 let segmentCurves = [];
 
 function generateSegmentCurve(index) {
-  // Smooth curve generation using Perlin-like approach
-  const spacing = 5;
-  const group = Math.floor(index / spacing);
-  const seed = group * 7.31 + index * 1.13;
-  const noise1 = Math.sin(seed * 0.7) * Math.cos(seed * 0.3);
-  const noise2 = Math.sin(seed * 1.1 + 5) * Math.cos(seed * 0.9 + 3);
-  const curve = (noise1 * 0.6 + noise2 * 0.4);
-  // Only significant curves sometimes
-  const prob = Math.sin(seed * 0.5) * 0.5 + 0.5;
-  return curve * (prob > 0.55 ? 1 : 0.15) * 6;
+  const sectionLen = 35;
+  const section = Math.floor(index / sectionLen);
+  const local = index - section * sectionLen;
+  const pos = local / sectionLen;
+
+  const phase = section % 5;
+
+  let target = 0;
+  if (phase === 1) target = -8;
+  else if (phase === 3) target = 7;
+  else if (phase === 4) target = -5;
+
+  const blendIn = Math.min(pos / 0.25, 1);
+  const blendOut = Math.min((1 - pos) / 0.25, 1);
+  const strength = blendIn * blendOut;
+
+  const noise = Math.sin(index * 0.31 + section * 0.7) * 0.4;
+  return target * strength + noise;
 }
 
 function ensureSegmentsUpTo(index) {
@@ -444,7 +452,10 @@ function buildRoadScreenData(playerPos, playerX) {
 
   roadScreenData = [];
 
-  // Calculate world x offsets for each visible segment
+  // z=0 point: road center at player's position
+  roadScreenData.push({ worldX: 0, curve: 0 });
+
+  // Calculate world x offsets for each visible segment ahead
   let cumCurve = 0;
   let worldX = 0;
 
@@ -459,16 +470,17 @@ function buildRoadScreenData(playerPos, playerX) {
       cumCurve += seg.curve;
     }
     worldX = cumCurve * SEGMENT_LENGTH * 0.15;
-    roadScreenData.push({ worldX, curve: seg.curve });
+    roadScreenData.push({ worldX: worldX, curve: seg.curve });
   }
 }
 
 function projectRoad(z, worldOffsetX) {
   const d = Math.max(z, 1);
   const scale = FOCAL_LENGTH / (FOCAL_LENGTH + d);
-  const sx = W / 2 + (worldOffsetX) * scale;
-  const sy = H * HORIZON_RATIO + (H * (1 - HORIZON_RATIO)) * (1 - scale);
-  const sw = ROAD_WIDTH * scale * 0.4;
+  const horizonY = H * HORIZON_RATIO;
+  const sy = H - (H - horizonY) * (1 - scale);
+  const sx = W / 2 + worldOffsetX * scale;
+  const sw = ROAD_WIDTH * scale * 0.04;
   return { sx, sy, sw, scale };
 }
 
@@ -482,7 +494,7 @@ function drawRoad(playerPos, playerX) {
   const baseSeg = Math.floor(playerPos / SEGMENT_LENGTH);
   const proj = [];
   for (let i = 0; i < roadScreenData.length; i++) {
-    const z = (i + 1) * SEGMENT_LENGTH;
+    const z = i * SEGMENT_LENGTH;
     const worldOffset = roadScreenData[i].worldX - playerX;
     proj.push(projectRoad(z, worldOffset));
   }
@@ -490,15 +502,15 @@ function drawRoad(playerPos, playerX) {
   // Draw ground first
   drawGround(roadScreenData);
 
-  // Draw road from back to front
+  // Draw road from back to front (farthest = top of screen, nearest = bottom)
   for (let i = proj.length - 2; i >= 0; i--) {
-    const cur = proj[i];
-    const next = proj[i + 1];
+    const cur = proj[i + 1];  // FAR edge (smaller sy, higher on screen)
+    const next = proj[i];     // NEAR edge (larger sy, lower on screen)
 
-    if (cur.sy > H && next.sy > H) continue;
-    if (cur.sy < 0 && next.sy < 0) continue;
+    if (next.sy < horizonY) continue;
+    if (cur.sy > H) continue;
 
-    const absIdx = baseSeg + i;
+    const absIdx = baseSeg + i + 1;
     const isRumble = Math.floor(absIdx / 4) % 2 === 0;
     const isLane = absIdx % 8 === 0;
 
@@ -613,6 +625,89 @@ function drawRoad(playerPos, playerX) {
       ctx.lineTo(s2.sx + s2.sw - ew2, y2);
       ctx.closePath();
       ctx.fill();
+    }
+  }
+}
+
+// ===================== SCENERY (trees, houses) =====================
+function shouldHaveScenery(segIndex) {
+  if (segIndex % 3 !== 0) return false;
+  const seed = segIndex * 7.31;
+  const r = Math.sin(seed) * 0.5 + 0.5;
+  return r > 0.45;
+}
+
+function getSceneryInfo(segIndex) {
+  const seed = segIndex * 13.37;
+  const rType = Math.sin(seed) * 0.5 + 0.5;
+  const rSide = Math.sin(seed * 1.7) * 0.5 + 0.5;
+  const rDist = Math.sin(seed * 2.3) * 0.5 + 0.5;
+  const rSize = Math.sin(seed * 3.1) * 0.5 + 0.5;
+  return {
+    type: rType > 0.55 ? 'tree' : 'house',
+    side: rSide > 0.5 ? 1 : -1,
+    distFromRoad: 40 + rDist * 80,
+    size: rSize > 0.5 ? 1 : 0.7
+  };
+}
+
+function drawScenery() {
+  const horizonY = H * HORIZON_RATIO;
+  const baseSeg = Math.floor(playerPos / SEGMENT_LENGTH);
+  const maxSeg = baseSeg + Math.min(VISIBLE_SEGMENTS, 60);
+
+  for (let segIdx = baseSeg + 1; segIdx <= maxSeg; segIdx += 3) {
+    if (!shouldHaveScenery(segIdx)) continue;
+
+    const info = getSceneryInfo(segIdx);
+    const dataIdx = segIdx - baseSeg;
+    if (dataIdx < 0 || dataIdx >= roadScreenData.length) continue;
+
+    const roadOffset = roadScreenData[dataIdx].worldX;
+    const z = dataIdx * SEGMENT_LENGTH;
+
+    const worldX = roadOffset + info.side * (ROAD_WIDTH * 0.04 + info.distFromRoad);
+    const dx = worldX - playerX;
+
+    const d = Math.max(z, 1);
+    const scale = FOCAL_LENGTH / (FOCAL_LENGTH + d);
+    const sy = H - (H - horizonY) * (1 - scale);
+    if (sy < horizonY || sy > H) continue;
+
+    const sx = W / 2 + dx * scale;
+    if (sx < -80 || sx > W + 80) continue;
+
+    const h = info.size * (120 * scale);
+    const w = info.size * (80 * scale);
+
+    if (info.type === 'tree') {
+      ctx.fillStyle = '#3a2a1a';
+      ctx.fillRect(sx - w * 0.06, sy - h * 0.35, w * 0.12, h * 0.35);
+      ctx.fillStyle = '#1e4a14';
+      ctx.beginPath();
+      ctx.arc(sx, sy - h * 0.45, w * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#2a6a1e';
+      ctx.beginPath();
+      ctx.arc(sx - w * 0.2, sy - h * 0.3, w * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(sx + w * 0.2, sy - h * 0.3, w * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = '#8B7355';
+      ctx.fillRect(sx - w * 0.45, sy - h * 0.6, w * 0.9, h * 0.6);
+      ctx.fillStyle = '#5c3a1e';
+      ctx.beginPath();
+      ctx.moveTo(sx - w * 0.55, sy - h * 0.6);
+      ctx.lineTo(sx, sy - h);
+      ctx.lineTo(sx + w * 0.55, sy - h * 0.6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#4a2a0a';
+      ctx.fillRect(sx - w * 0.08, sy - h * 0.35, w * 0.16, h * 0.35);
+      ctx.fillStyle = '#aad4e6';
+      ctx.fillRect(sx + w * 0.12, sy - h * 0.5, w * 0.18, h * 0.18);
     }
   }
 }
@@ -860,6 +955,17 @@ setupTouchButton('rightBtn', 'right');
 function togglePause() {
   paused = !paused;
   document.getElementById('pauseBtn').textContent = paused ? '▶' : '⏸';
+  if (audioCtx) {
+    if (paused) {
+      engineGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.02);
+      engineNoiseGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.02);
+    } else {
+      const p = Math.min(speed / maxSpeed, 1);
+      const vol = 0.02 + p * 0.1;
+      engineGain.gain.setTargetAtTime(vol, audioCtx.currentTime, 0.05);
+      engineNoiseGain.gain.setTargetAtTime(vol * 0.5, audioCtx.currentTime, 0.05);
+    }
+  }
 }
 
 document.getElementById('pauseBtn').addEventListener('click', togglePause);
@@ -958,7 +1064,7 @@ function update() {
   const rightEdge = roadCenterAtPlayer + ROAD_WIDTH / 2;
 
   // Check off-road
-  const margin = 600;
+  const margin = 500;
   isOffroad = (playerX < leftEdge + margin || playerX > rightEdge - margin);
 
   if (isOffroad) {
@@ -1023,6 +1129,9 @@ function render() {
   // Road
   drawRoad(playerPos, playerX);
 
+  // Scenery (trees, houses)
+  drawScenery();
+
   // Speed lines effect at high speed (behind car, on road)
   if (speed > maxSpeed * 0.6) {
     const intensity = (speed / maxSpeed - 0.6) / 0.4;
@@ -1039,13 +1148,11 @@ function render() {
     }
   }
 
-  // Car position based on player's lateral offset
-  const carW = Math.max(50, W * 0.12);
-  const carH = carW * 1.6;
-  const maxLateral = ROAD_WIDTH * 0.4;
-  const t = Math.max(-1, Math.min(1, playerX / maxLateral));
-  const targetX = W/2 + t * W * 0.3 - carW/2;
-  const targetY = H - carH - 10;
+  // Car position (chase cam: smaller car higher up, road ahead going upward)
+  const carW = Math.max(28, W * 0.055);
+  const carH = carW * 1.5;
+  const targetX = W/2 + playerX * 0.08 - carW/2;
+  const targetY = H * 0.7;
   const clampedX = Math.max(5, Math.min(W - carW - 5, targetX));
 
   // Car
