@@ -4,14 +4,18 @@ Juego arcade de conducción con perspectiva pseudo-3D tipo OutRun. Corre directa
 
 ## Características
 
-- 🛣️ Carretera con perspectiva 3D y curvas dinámicas
+- 🛣️ Carretera con perspectiva 3D (chase cam) y curvas dinámicas
 - 🌄 Fondos parallax con montañas, cielo estrellado y nubes
 - 🚗 Coche detallado con animaciones de inclinación y bounce
-- 🔊 Sonido de motor dinámico (Web Audio API)
+- 🔊 Sonido de motor dinámico (Web Audio API) + efectos de sonido
+- 🛢️ Obstáculos en la carretera (barriles) que restan vida
+- 👤 Avatar coleccionable (PNG) que suma +50 puntos
 - 💥 Efectos al salirse de la carretera (screen shake, partículas, viñeta roja)
+- 💫 Partículas de colisión y popups de puntuación
 - 📱 Controles táctiles y por teclado (flechas / A-D)
 - 🏆 Sistema de récords (top 5, localStorage)
-- 📊 Dificultad progresiva con 5+ niveles
+- 📊 Dificultad progresiva con niveles (velocidad máxima aumenta)
+- 📈 HUD completo: barra de vida, velocímetro con gauge, puntuación, nivel
 
 ## Cómo jugar
 
@@ -21,7 +25,7 @@ Abre `1.html` en cualquier navegador moderno.
 - **Móvil**: Botones táctiles ◀ ▶
 - **Pausa**: P / botón ⏸
 
-Mantén el coche dentro de la carretera el mayor tiempo posible. La velocidad aumenta con cada nivel.
+Mantén el coche dentro de la carretera el mayor tiempo posible. Esquiva los barriles rojos y recolecta el avatar para ganar puntos extra. La velocidad aumenta con cada nivel.
 
 ## Tecnología
 
