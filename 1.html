@@ -234,8 +234,12 @@ function updateEngineSound(speed, maxSpeed) {
 }
 
 function stopAudio() {
-  if (engineGain) engineGain.gain.setValueAtTime(0, audioCtx.currentTime);
-  if (engineNoiseGain) engineNoiseGain.gain.setValueAtTime(0, audioCtx.currentTime);
+  if (engineOsc) { try { engineOsc.stop(); } catch(e) {} }
+  if (engineNoise) { try { engineNoise.stop(); } catch(e) {} }
+  if (engineGain) { try { engineGain.disconnect(); } catch(e) {} }
+  if (engineNoiseGain) { try { engineNoiseGain.disconnect(); } catch(e) {} }
+  audioCtx = null; engineOsc = null; engineNoise = null;
+  engineGain = null; engineNoiseGain = null;
 }
 
 function playTone(freq, duration, type = 'sine', vol = 0.12) {
@@ -634,7 +638,8 @@ function drawObstacles() {
   const baseSeg = Math.floor(playerPos / SEGMENT_LENGTH);
   const maxSeg = baseSeg + Math.min(VISIBLE_SEGMENTS, 60);
   const warnPulse = Math.sin(totalDistance * 0.15) * 0.5 + 0.5;
-  for (let segIdx = baseSeg + 1; segIdx <= maxSeg; segIdx += 4) {
+  const startSeg = Math.ceil((baseSeg + 1) / 4) * 4;
+  for (let segIdx = startSeg; segIdx <= maxSeg; segIdx += 4) {
     if (!shouldHaveObstacle(segIdx)) continue;
     const info = getObstacleInfo(segIdx);
     const dataIdx = segIdx - baseSeg;
@@ -690,6 +695,7 @@ function drawObstacles() {
   }
 }
 function checkObstacleCollision() {
+  if (obstacleCooldown > 0) return false;
   const baseSeg = Math.floor(playerPos / SEGMENT_LENGTH);
   const carSeg = Math.floor((playerPos + SEGMENT_LENGTH * 2) / SEGMENT_LENGTH);
   for (let seg = carSeg - 1; seg <= carSeg + 1; seg++) {
@@ -697,7 +703,8 @@ function checkObstacleCollision() {
     if (!shouldHaveObstacle(seg)) continue;
     const info = getObstacleInfo(seg);
     if (Math.abs(playerX - info.x) < ROAD_WIDTH * 0.04 * 0.18) {
-      life -= 15;
+      life -= 8;
+      obstacleCooldown = 30;
       shakeIntensity = Math.min(12, shakeIntensity + 5);
       collisionFlash = 0.5;
       playTone(80, 0.3, 'sawtooth', 0.15);
@@ -750,13 +757,13 @@ function drawAvatarCollectible() {
     if (sy < horizonY || sy > H) continue;
     const sx = W / 2 + dx * scale;
     if (sx < -60 || sx > W + 60) continue;
-    const sz = 35 * scale;
-    const bobY = Math.sin(totalDistance * 0.08 + segIdx) * 8 * scale;
+    const sz = Math.max(22, 60 * scale);
+    const bobY = Math.sin(totalDistance * 0.08 + segIdx) * 10 * scale;
     const pulseGlow = 0.3 + Math.sin(totalDistance * 0.12 + segIdx * 0.5) * 0.2;
     // Pulsing glow ring
     ctx.shadowColor = '#f7c948';
-    ctx.shadowBlur = 20 * scale;
-    ctx.strokeStyle = `rgba(247,201,72,${pulseGlow * 0.5})`;
+    ctx.shadowBlur = 25 * scale;
+    ctx.strokeStyle = `rgba(247,201,72,${pulseGlow * 0.6})`;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(sx, sy - sz + bobY, sz * 0.7, 0, Math.PI * 2);
@@ -954,6 +961,7 @@ let bouncePhase = 0;
 let frameCount = 0;
 let scorePopups = [];
 let collisionFlash = 0;
+let obstacleCooldown = 0;
 
 // ===================== INPUT =====================
 let inputLeft = false;
@@ -1018,7 +1026,7 @@ function resetGame() {
   score = 0; level = 1; life = 100; totalDistance = 0;
   isOffroad = false; offroadTimer = 0; leanAngle = 0; bouncePhase = 0;
   shakeIntensity = 0; particles = []; paused = false;
-  scorePopups = []; collisionFlash = 0;
+  scorePopups = []; collisionFlash = 0; obstacleCooldown = 0;
   avatarSegments = [];
   document.getElementById('pauseBtn').textContent = '⏸';
 }
@@ -1034,7 +1042,7 @@ function endGame() {
 function restartGame() {
   document.getElementById('gameOverScreen').classList.add('hidden');
   document.getElementById('gameUI').style.display = 'block';
-  resetGame(); gameRunning = true; loop();
+  initAudio(); resetGame(); gameRunning = true; loop();
 }
 function goToMenu() {
   document.getElementById('gameOverScreen').classList.add('hidden');
@@ -1085,6 +1093,7 @@ function update() {
     shakeIntensity *= 0.9;
   }
   collisionFlash *= 0.95;
+  if (obstacleCooldown > 0) obstacleCooldown--;
   life = Math.max(0, Math.min(100, life));
 
   // Obstacle collision
@@ -1228,7 +1237,6 @@ function render() {
   drawRoad(playerPos, playerX);
   drawScenery();
   drawObstacles();
-  drawAvatarCollectible();
 
   // Speed lines
   if (speed > maxSpeed * 0.6) {
@@ -1250,6 +1258,10 @@ function render() {
   const targetY = H * 0.7;
   const clampedX = Math.max(5, Math.min(W - carW - 5, targetX));
   drawCar(clampedX, targetY, carW, carH, leanAngle, 0, isOffroad);
+
+  // Avatar on top of car so it's always visible
+  drawAvatarCollectible();
+
   drawParticles();
 
   // Off-road vignette
