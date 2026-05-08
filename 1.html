@@ -60,32 +60,10 @@
     transition:width 0.1s;
   }
 
-  /* Top-right: Speedometer + Score */
+  /* Top-right: Score */
   #rightPanel {
     position:absolute; top:clamp(10px,2.5vw,18px); right:clamp(10px,2.5vw,18px);
     display:flex; flex-direction:column; gap:6px; align-items:flex-end;
-  }
-  #speedoFrame {
-    background:rgba(0,0,0,0.4); backdrop-filter:blur(4px);
-    border:1px solid rgba(255,255,255,0.1); border-radius:10px;
-    padding:8px 12px; display:flex; flex-direction:column; gap:4px;
-    min-width:clamp(70px,16vw,130px);
-  }
-  #speedoLabel {
-    font-size:clamp(7px,1.2vw,10px); color:rgba(255,255,255,0.4);
-    text-transform:uppercase; letter-spacing:2px; text-align:right;
-  }
-  #speedoGaugeWrap {
-    width:100%; height:5px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden;
-  }
-  #speedoGaugeFill {
-    width:0%; height:100%; border-radius:3px;
-    background:linear-gradient(90deg,#f7c948,#ff6b35,#ff1744);
-    transition:width 0.1s;
-  }
-  #speedoValue {
-    font-size:clamp(18px,4vw,30px); font-weight:800; color:#f7c948;
-    text-shadow:0 2px 8px rgba(0,0,0,0.6); line-height:1; text-align:right;
   }
 
   #scoreFrame {
@@ -170,11 +148,6 @@
     <div id="lifeCornerBar"><div id="lifeCornerFill"></div></div>
   </div>
   <div id="rightPanel">
-    <div id="speedoFrame">
-      <div id="speedoLabel">Velocidad</div>
-      <div id="speedoGaugeWrap"><div id="speedoGaugeFill"></div></div>
-      <div id="speedoValue">0</div>
-    </div>
     <div id="scoreFrame">
       <div id="scoreFrameLabel">Puntos</div>
       <div id="scoreFrameValue">0</div>
@@ -262,8 +235,8 @@ function updateEngineSound(speed, maxSpeed) {
 }
 
 function stopAudio() {
-  if (engineGain) engineGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
-  if (engineNoiseGain) engineNoiseGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+  if (engineGain) engineGain.gain.setValueAtTime(0, audioCtx.currentTime);
+  if (engineNoiseGain) engineNoiseGain.gain.setValueAtTime(0, audioCtx.currentTime);
 }
 
 function playTone(freq, duration, type = 'sine', vol = 0.12) {
@@ -1125,7 +1098,8 @@ function update() {
 
   // Generate new avatars
   const baseSeg = Math.floor(playerPos / SEGMENT_LENGTH);
-  for (let s = baseSeg + 30; s < baseSeg + 80; s += 7) {
+  const startSeg = Math.ceil((baseSeg + 30) / 7) * 7;
+  for (let s = startSeg; s < baseSeg + 80; s += 7) {
     if (shouldHaveAvatar(s) && !avatarSegments.includes(s)) {
       generateAvatar(s);
     }
@@ -1152,6 +1126,95 @@ function update() {
   // Audio
   updateEngineSound(speed, maxSpeed);
   updateParticles();
+}
+
+// ===================== ANALOG SPEEDOMETER =====================
+function drawSpeedometer() {
+  const margin = Math.max(10, W * 0.025);
+  const radius = Math.min(65, W * 0.08, H * 0.12);
+  const cx = W - margin - radius;
+  const cy = margin + radius;
+  const angleStart = -Math.PI * 0.75;
+  const angleEnd = Math.PI * 0.75;
+  const angleRange = angleEnd - angleStart;
+  const pct = Math.min(speed / maxSpeed, 1);
+
+  // Background
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Tick marks
+  for (let i = 0; i <= 10; i++) {
+    const a = angleStart + (i / 10) * angleRange;
+    const innerR = radius - 12;
+    const outerR = i % 5 === 0 ? radius - 4 : radius - 9;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * innerR, cy + Math.sin(a) * innerR);
+    ctx.lineTo(cx + Math.cos(a) * outerR, cy + Math.sin(a) * outerR);
+    ctx.strokeStyle = i % 5 === 0 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = i % 5 === 0 ? 2 : 1;
+    ctx.stroke();
+  }
+
+  // Colored arc
+  const speedAngle = angleStart + pct * angleRange;
+  const arcR = radius - 7;
+  const arcW = 5;
+  // Green zone (0-50%)
+  ctx.beginPath();
+  ctx.arc(cx, cy, arcR, angleStart, angleStart + Math.min(pct, 0.5) / 1 * angleRange);
+  ctx.strokeStyle = '#76ff03';
+  ctx.lineWidth = arcW;
+  ctx.stroke();
+  // Yellow zone (50-80%)
+  if (pct > 0.5) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, arcR, angleStart + 0.5 * angleRange, angleStart + Math.min(pct, 0.8) * angleRange);
+    ctx.strokeStyle = '#f7c948';
+    ctx.lineWidth = arcW;
+    ctx.stroke();
+  }
+  // Red zone (80-100%)
+  if (pct > 0.8) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, arcR, angleStart + 0.8 * angleRange, speedAngle);
+    ctx.strokeStyle = '#ff1744';
+    ctx.lineWidth = arcW;
+    ctx.stroke();
+  }
+
+  // Needle
+  const needleLen = radius - 16;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(speedAngle) * needleLen, cy + Math.sin(speedAngle) * needleLen);
+  ctx.strokeStyle = '#f7c948';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // Center cap
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+  ctx.fillStyle = '#f7c948';
+  ctx.fill();
+
+  // Speed value
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${radius * 0.32}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(Math.floor(speed * 12), cx, cy + 2);
+
+  // KM/H label
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = `${radius * 0.13}px sans-serif`;
+  ctx.textBaseline = 'top';
+  ctx.fillText('KM/H', cx, cy + radius * 0.32);
 }
 
 // ===================== RENDER =====================
@@ -1209,11 +1272,10 @@ function render() {
     ctx.fillRect(0, 0, W, H);
   }
 
+  drawSpeedometer();
+
   // HUD updates
   document.getElementById('lifeCornerFill').style.width = life + '%';
-  const speedPct = Math.min(100, (speed / maxSpeed) * 100);
-  document.getElementById('speedoGaugeFill').style.width = speedPct + '%';
-  document.getElementById('speedoValue').textContent = Math.floor(speed * 12);
   document.getElementById('scoreFrameValue').textContent = Math.floor(score).toLocaleString();
   document.getElementById('levelDisplay').textContent = `NIVEL ${level}`;
 }
