@@ -19,15 +19,7 @@ Juego arcade de conducción con perspectiva pseudo-3D tipo OutRun. Corre directa
 
 ## Cómo jugar
 
-### Opción 1 — GitHub Pages (recomendada)
-Habilita GitHub Pages en `Settings → Pages → Source: Deploy from branch → main, / (root)`.
-Una vez activado, el juego estará disponible en:
-```
-https://jlrmaster-creator.github.io/pepe_turbo_racer/
-```
-
-### Opción 2 — Local
-Abre `index.html` en cualquier navegador moderno.
+Abre `1.html` en cualquier navegador moderno.
 
 - **Teclado**: Flechas izquierda/derecha o A/D
 - **Móvil**: Botones táctiles ◀ ▶
